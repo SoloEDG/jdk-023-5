@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive } from 'vue'
 import { createInputController } from '@/app/input-map'
 import { startLoop } from '@/app/game-loop'
-import { createDocument } from '@/shared/document'
+import { activePlayer, createDocument } from '@/shared/document'
 import { BonusBanner, ChainMeter } from '@/features/bonus'
 import { ControlDeck, TiltLamp } from '@/features/flippers'
 import { ChallengeBoard, HistoryList, readSave, ResultCard } from '@/features/records'
@@ -50,11 +50,15 @@ function onPlunger(down: boolean): void {
         <div class="table-wrap">
           <TableView :doc="doc" />
           <p class="how">
-            A 与左 Shift 是左挡板，D 与右 Shift 是右挡板。按住空格蓄力，松开把球打上发射槽。Q、E 轻推，三次会倾斜。P 暂停。
+            两位玩家轮流，每人三颗球，球落出后换人。A 与左 Shift 是左挡板，D 与右 Shift 是右挡板。按住空格蓄力，松开把球打上发射槽。Q、E 轻推，三次会倾斜。倍率、连锁与倾斜只属于当前玩家，换人即冻结；落靶与坡道是台面状态，换人保持。P 暂停。
           </p>
         </div>
         <aside class="side">
-          <TiltLamp :warnings="doc.nudge.warnings" :tilted="doc.nudge.tilted" />
+          <TiltLamp
+            :player-name="activePlayer(doc).name"
+            :warnings="activePlayer(doc).nudge.warnings"
+            :tilted="activePlayer(doc).nudge.tilted"
+          />
           <BonusBanner :doc="doc" />
           <ResultCard :doc="doc" />
           <ChainMeter :doc="doc" />

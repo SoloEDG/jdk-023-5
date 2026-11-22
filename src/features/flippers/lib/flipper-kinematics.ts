@@ -1,5 +1,5 @@
 import type { FrameInput } from '@/shared/commands'
-import type { PinballDocument } from '@/shared/document'
+import { activePlayer, type PinballDocument } from '@/shared/document'
 import { clamp, type FlipperAnchors } from '@/shared/geometry'
 
 const SWING_RADIANS_PER_SEC = 15
@@ -23,7 +23,7 @@ export function advanceFlippers(
   pose: FlipperAnchors,
 ): void {
   const dtSec = dtMs / 1000
-  const locked = doc.nudge.tilted
+  const locked = activePlayer(doc).nudge.tilted
   doc.flippers.left.held = input.left && !locked
   doc.flippers.right.held = input.right && !locked
   const leftTarget = doc.flippers.left.held ? pose.leftRaised : pose.leftRest

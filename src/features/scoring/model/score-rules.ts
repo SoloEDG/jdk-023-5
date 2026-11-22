@@ -1,5 +1,5 @@
 import type { ContactEvent } from '@/shared/contacts'
-import { findMechanism, type PinballDocument } from '@/shared/document'
+import { activePlayer, findMechanism, type PinballDocument } from '@/shared/document'
 import { BodyId } from '@/shared/ids'
 import { cooldownFor } from '@/features/table'
 
@@ -43,21 +43,22 @@ export function pointsFor(id: string, multiplier: number): number | null {
   return base * multiplier
 }
 
-function remember(doc: PinballDocument, id: string, points: number): void {
+function remember(doc: PinballDocument, playerName: string, id: string, points: number): void {
   doc.feedSeq += 1
-  doc.feed.unshift({ uid: doc.feedSeq, text: `${NAME[id] ?? '撞击'} +${points}`, points })
+  doc.feed.unshift({ uid: doc.feedSeq, text: `${playerName} · ${NAME[id] ?? '撞击'} +${points}`, points })
   if (doc.feed.length > 6) doc.feed.length = 6
 }
 
 export function applyScore(doc: PinballDocument, events: ContactEvent[]): ContactEvent[] {
+  const player = activePlayer(doc)
   const awarded: ContactEvent[] = []
   for (const event of events) {
     const mechanism = findMechanism(doc, event.id)
     if (mechanism && mechanism.cooldownMs > 0) continue
-    const points = pointsFor(event.id, doc.chain.multiplier)
+    const points = pointsFor(event.id, player.chain.multiplier)
     if (points === null) continue
-    doc.score += points
-    remember(doc, event.id, points)
+    player.score += points
+    remember(doc, player.name, event.id, points)
     if (mechanism) mechanism.cooldownMs = cooldownFor(mechanism.kind)
     awarded.push(event)
   }

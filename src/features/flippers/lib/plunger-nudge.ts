@@ -1,5 +1,5 @@
 import type { FrameInput } from '@/shared/commands'
-import { flashNote, type PinballDocument } from '@/shared/document'
+import { activePlayer, flashNote, type PinballDocument } from '@/shared/document'
 
 const CHARGE_MS = 900
 const TILT_LIMIT = 3
@@ -27,38 +27,44 @@ export function advancePlunger(doc: PinballDocument, input: FrameInput, dtMs: nu
   if (doc.phase === 'ready') {
     doc.phase = 'playing'
     doc.run.launched = true
+    doc.run.turnCount += 1
   }
 }
 
 function bump(doc: PinballDocument, direction: -1 | 1): void {
+  const player = activePlayer(doc)
+  const nudge = player.nudge
   doc.ball.vx += direction * NUDGE_SPEED
-  doc.nudge.warnings += 1
-  doc.nudge.flashMs = 160
-  doc.nudge.flashDir = direction
-  if (doc.nudge.warnings >= TILT_LIMIT) {
-    doc.nudge.tilted = true
-    doc.live.tilted = true
-    flashNote(doc, '倾斜，挡板失灵')
+  nudge.warnings += 1
+  nudge.flashMs = 160
+  nudge.flashDir = direction
+  if (nudge.warnings >= TILT_LIMIT) {
+    nudge.tilted = true
+    player.live.tilted = true
+    flashNote(doc, `${player.name}倾斜，挡板失灵`)
     return
   }
-  flashNote(doc, `轻推 ${doc.nudge.warnings}/${TILT_LIMIT}`)
+  flashNote(doc, `${player.name}轻推 ${nudge.warnings}/${TILT_LIMIT}`)
 }
 
 export function applyNudges(doc: PinballDocument, input: FrameInput): void {
-  if (doc.phase !== 'playing' || doc.nudge.tilted || doc.ball.held !== 'none') return
+  if (doc.phase !== 'playing' || activePlayer(doc).nudge.tilted || doc.ball.held !== 'none') return
   if (input.nudgeLeft) bump(doc, -1)
-  if (input.nudgeRight && doc.nudge.warnings < TILT_LIMIT) bump(doc, 1)
+  if (input.nudgeRight && activePlayer(doc).nudge.warnings < TILT_LIMIT) bump(doc, 1)
 }
 
 export function decayNudgeFlash(doc: PinballDocument, dtMs: number): void {
-  if (doc.nudge.flashMs <= 0) return
-  doc.nudge.flashMs = Math.max(0, doc.nudge.flashMs - dtMs)
-  if (doc.nudge.flashMs === 0) doc.nudge.flashDir = 0
+  const flash = activePlayer(doc).nudge
+  if (flash.flashMs <= 0) return
+  flash.flashMs = Math.max(0, flash.flashMs - dtMs)
+  if (flash.flashMs === 0) flash.flashDir = 0
 }
 
+/** 只清掉当前玩家的轻推计数，另一位的倾斜记录不受影响。 */
 export function clearWarnings(doc: PinballDocument): void {
-  doc.nudge.warnings = 0
-  doc.nudge.tilted = false
-  doc.nudge.flashMs = 0
-  doc.nudge.flashDir = 0
+  const nudge = activePlayer(doc).nudge
+  nudge.warnings = 0
+  nudge.tilted = false
+  nudge.flashMs = 0
+  nudge.flashDir = 0
 }

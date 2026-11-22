@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { PinballDocument } from '@/shared/document'
+import {
+  activePlayer,
+  BALLS_PER_PLAYER,
+  matchScore,
+  type PinballDocument,
+} from '@/shared/document'
 import { speedOf } from '@/shared/geometry'
 
 const props = defineProps<{ doc: PinballDocument }>()
 
-const ballLabel = computed(() => {
-  const index = props.doc.ballsLeft > 0 ? 4 - props.doc.ballsLeft : 3
-  return `第 ${index} 颗 / 共 3 颗`
-})
+const totalScore = computed(() => matchScore(props.doc))
 
 const clock = computed(() => {
   const total = Math.floor(props.doc.run.playMs / 1000)
@@ -24,15 +26,34 @@ const phaseLabel = computed(() => {
   if (props.doc.ball.held === 'plunger') return '回槽'
   return '游玩'
 })
+
+const turnLabel = computed(() => {
+  const current = activePlayer(props.doc)
+  const used = BALLS_PER_PLAYER - current.ballsLeft + 1
+  return `第 ${used} 颗 / 共 ${BALLS_PER_PLAYER} 颗`
+})
 </script>
 
 <template>
   <div class="score-window">
-    <p class="score-digits" aria-live="polite">{{ doc.score }}</p>
+    <p class="score-digits" aria-live="polite">{{ totalScore }}</p>
+    <div class="player-scores">
+      <p
+        v-for="player in doc.players"
+        :key="player.id"
+        class="player-score"
+        :class="{ on: player.id === doc.activePlayer && doc.phase !== 'gameover' }"
+      >
+        <span class="player-dot" aria-hidden="true"></span>
+        <span class="player-name">{{ player.name }}</span>
+        <strong>{{ player.score }}</strong>
+        <em>剩 {{ player.ballsLeft }} 球</em>
+      </p>
+    </div>
     <dl class="score-meta">
       <div>
         <dt>最佳</dt>
-        <dd>{{ Math.max(doc.bestScore, doc.score) }}</dd>
+        <dd>{{ Math.max(doc.bestScore, totalScore) }}</dd>
       </div>
       <div>
         <dt>用时</dt>
@@ -47,7 +68,7 @@ const phaseLabel = computed(() => {
         <dd>{{ phaseLabel }}</dd>
       </div>
     </dl>
-    <p class="ball-label">{{ ballLabel }}</p>
+    <p class="ball-label">{{ activePlayer(doc).name }} · {{ turnLabel }}</p>
     <p v-if="doc.note.ms > 0" class="note-line">{{ doc.note.text }}</p>
   </div>
 </template>

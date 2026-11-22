@@ -1,4 +1,5 @@
 import type { PinballDocument } from '@/shared/document'
+import { activePlayer } from '@/shared/document'
 import { polar } from '@/shared/geometry'
 import {
   VIEW,
@@ -52,7 +53,7 @@ function lampColor(index: number, bonus: boolean): string {
 function bumpersOf(ctx: CanvasRenderingContext2D, doc: PinballDocument): void {
   for (const bumper of bumpers) {
     const state = doc.mechanisms.find((item) => item.id === bumper.id)
-    const color = lampColor(state?.lamp ?? 0, doc.chain.bonusMs > 0)
+    const color = lampColor(state?.lamp ?? 0, activePlayer(doc).chain.bonusMs > 0)
     ctx.beginPath()
     ctx.fillStyle = '#7a1d32'
     ctx.arc(bumper.x, bumper.y, bumper.r + 6, 0, Math.PI * 2)
@@ -216,7 +217,7 @@ function ballOf(ctx: CanvasRenderingContext2D, doc: PinballDocument): void {
 }
 
 function bonusWash(ctx: CanvasRenderingContext2D, doc: PinballDocument): void {
-  if (doc.chain.bonusMs <= 0) return
+  if (activePlayer(doc).chain.bonusMs <= 0) return
   ctx.strokeStyle = 'rgba(200,29,58,0.85)'
   ctx.lineWidth = 8
   ctx.strokeRect(24, 28, VIEW.w - 48, VIEW.h - 52)
@@ -225,7 +226,8 @@ function bonusWash(ctx: CanvasRenderingContext2D, doc: PinballDocument): void {
 export function paintTable(ctx: CanvasRenderingContext2D, doc: PinballDocument, width: number, height: number): void {
   ctx.clearRect(0, 0, width, height)
   ctx.save()
-  const shake = doc.nudge.flashMs > 0 ? (doc.nudge.flashDir * 7 * doc.nudge.flashMs) / 160 : 0
+  const flash = activePlayer(doc).nudge
+  const shake = flash.flashMs > 0 ? (flash.flashDir * 7 * flash.flashMs) / 160 : 0
   ctx.translate(shake, 0)
   ctx.scale(width / VIEW.w, height / VIEW.h)
   felt(ctx)

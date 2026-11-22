@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { MechanismState, PinballDocument } from '@/shared/document'
+import { activePlayer, type MechanismState, type PinballDocument } from '@/shared/document'
 
 const props = defineProps<{ doc: PinballDocument }>()
 
 function status(item: MechanismState): string {
   if (item.kind === 'drop') return item.up ? '立着' : '已倒下'
   if (item.kind === 'gate') {
-    if (props.doc.chain.bonusMs > 0) return '奖励顶开'
+    if (activePlayer(props.doc).chain.bonusMs > 0) return '奖励顶开'
     if (item.openMs > 0) return `开 ${(item.openMs / 1000).toFixed(1)} 秒`
     return '关着'
   }

@@ -4,7 +4,16 @@ import { absorbZones, tickBonus } from '@/features/bonus'
 import { advanceControls } from '@/features/flippers'
 import { persist, syncRecords } from '@/features/records'
 import { simulateBall } from '@/features/scoring'
-import { anchors, consumeContacts, publishGates, sampleRamp, sampleScoop, stickPlunger, syncTable } from '@/features/table'
+import {
+  anchors,
+  collectSolids,
+  consumeContacts,
+  publishGates,
+  sampleRamp,
+  sampleScoop,
+  stickPlunger,
+  syncTable,
+} from '@/features/table'
 import { applyDrain, restartGame, togglePause } from '@/app/cabinet-actions'
 
 export function runFrame(doc: PinballDocument, input: FrameInput, dtMs: number): void {
@@ -25,9 +34,14 @@ export function runFrame(doc: PinballDocument, input: FrameInput, dtMs: number):
   if (doc.phase !== 'playing') return
 
   doc.run.playMs += dtMs
-  tickBonus(doc, dtMs)
-  const solids = syncTable(doc, dtMs)
-  if (doc.ball.held !== 'plunger') {
+  const ballInPlay = doc.ball.held !== 'plunger'
+  // 球停在发射槽（含换人等待）时不推进奖励、机关与闸门计时：
+  // 旁观者冻结的连锁/倍率不会流逝，奖励打开的坡道也不会被下一位白打。
+  if (ballInPlay) {
+    tickBonus(doc, dtMs)
+  }
+  const solids = ballInPlay ? syncTable(doc, dtMs) : collectSolids(doc)
+  if (ballInPlay) {
     const events = simulateBall(doc, solids, dtMs, { ramp: sampleRamp, scoop: sampleScoop })
     consumeContacts(doc, events)
     absorbZones(doc, events)

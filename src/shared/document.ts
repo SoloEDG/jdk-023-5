@@ -4,6 +4,8 @@ export type Phase = 'ready' | 'playing' | 'paused' | 'gameover'
 
 export type HoldKind = 'none' | 'plunger' | 'hole' | 'ramp' | 'scoop'
 
+export type PlayerId = 0 | 1
+
 export type MechanismKind =
   | 'bumper'
   | 'sling'
@@ -67,12 +69,29 @@ export interface ChainState {
   multiplier: number
 }
 
-export interface LiveGoals {
+/** 落靶整组的台面进度，属于整台机器、不随换人重置。 */
+export interface BankState {
+  pending: boolean
+  resetMs: number
+  /** 触发整组击落的玩家，重置结算时把清空记在他名下；换人不改变归属。 */
+  ownerId: PlayerId | null
+}
+
+/** 只归属于某一位玩家的单局目标，旁观时不计入另一位。 */
+export interface PlayerLiveGoals {
   bonusEntries: number
   bankClears: number
   tilted: boolean
-  bankPending: boolean
-  bankResetMs: number
+}
+
+export interface PlayerState {
+  id: PlayerId
+  name: string
+  score: number
+  ballsLeft: number
+  chain: ChainState
+  nudge: NudgeState
+  live: PlayerLiveGoals
 }
 
 export interface CareerState {
@@ -82,6 +101,17 @@ export interface CareerState {
   cleanFinish: boolean
 }
 
+export interface PlayerRecord {
+  id: PlayerId
+  name: string
+  score: number
+  ballsLeft: number
+  bonusEntries: number
+  bankClears: number
+  tilted: boolean
+}
+
+/** 一场两人共用一条记录，而不是各记一条单人成绩。 */
 export interface HistoryEntry {
   id: string
   endedAt: number
@@ -92,6 +122,7 @@ export interface HistoryEntry {
   bonusEntries: number
   bankClears: number
   cleanFinish: boolean
+  players: [PlayerRecord, PlayerRecord]
 }
 
 export interface FeedItem {
@@ -109,6 +140,7 @@ export interface RunMeta {
   launched: boolean
   committed: boolean
   playMs: number
+  turnCount: number
   storedScore: number
   storageWarned: boolean
 }
@@ -116,17 +148,15 @@ export interface RunMeta {
 export interface PinballDocument {
   phase: Phase
   phaseBeforePause: Phase | null
-  score: number
-  ballsLeft: number
+  activePlayer: PlayerId
   bestScore: number
   ball: BallState
   flippers: { left: FlipperState; right: FlipperState }
   plunger: PlungerState
-  nudge: NudgeState
+  players: [PlayerState, PlayerState]
   mechanisms: MechanismState[]
   gates: { rampOpen: boolean }
-  chain: ChainState
-  live: LiveGoals
+  bank: BankState
   career: CareerState
   history: HistoryEntry[]
   feed: FeedItem[]
@@ -136,16 +166,39 @@ export interface PinballDocument {
   signals: { drain: boolean }
 }
 
+export const PLAYER_NAMES = ['玩家一', '玩家二'] as const
+export const BALLS_PER_PLAYER = 3
+export const PLAYER_COUNT = 2
+
 export function defaultCareer(): CareerState {
   return { score10k: false, bonusOnce: false, bankTwice: false, cleanFinish: false }
+}
+
+function blankChain(): ChainState {
+  return { count: 0, lastZone: null, remainMs: 0, bonusMs: 0, multiplier: 1 }
+}
+
+function blankNudge(): NudgeState {
+  return { warnings: 0, tilted: false, flashMs: 0, flashDir: 0 }
+}
+
+export function createPlayer(id: PlayerId): PlayerState {
+  return {
+    id,
+    name: PLAYER_NAMES[id],
+    score: 0,
+    ballsLeft: BALLS_PER_PLAYER,
+    chain: blankChain(),
+    nudge: blankNudge(),
+    live: { bonusEntries: 0, bankClears: 0, tilted: false },
+  }
 }
 
 export function createDocument(): PinballDocument {
   return {
     phase: 'ready',
     phaseBeforePause: null,
-    score: 0,
-    ballsLeft: 3,
+    activePlayer: 0,
     bestScore: 0,
     ball: {
       x: 372,
@@ -164,19 +217,36 @@ export function createDocument(): PinballDocument {
       right: { angle: Math.PI - 0.62, omega: 0, held: false },
     },
     plunger: { power: 0, charging: false },
-    nudge: { warnings: 0, tilted: false, flashMs: 0, flashDir: 0 },
+    players: [createPlayer(0), createPlayer(1)],
     mechanisms: [],
     gates: { rampOpen: false },
-    chain: { count: 0, lastZone: null, remainMs: 0, bonusMs: 0, multiplier: 1 },
-    live: { bonusEntries: 0, bankClears: 0, tilted: false, bankPending: false, bankResetMs: 0 },
+    bank: { pending: false, resetMs: 0, ownerId: null },
     career: defaultCareer(),
     history: [],
     feed: [],
     feedSeq: 0,
     note: { text: '', ms: 0 },
-    run: { launched: false, committed: false, playMs: 0, storedScore: 0, storageWarned: false },
+    run: { launched: false, committed: false, playMs: 0, turnCount: 0, storedScore: 0, storageWarned: false },
     signals: { drain: false },
   }
+}
+
+/** 正在击球的玩家：倍率、连锁与倾斜都挂在他名下。 */
+export function activePlayer(doc: PinballDocument): PlayerState {
+  return doc.players[doc.activePlayer]
+}
+
+export function otherPlayer(doc: PinballDocument): PlayerState {
+  return doc.players[doc.activePlayer === 0 ? 1 : 0]
+}
+
+/** 一场两人的总得分。 */
+export function matchScore(doc: PinballDocument): number {
+  return doc.players[0].score + doc.players[1].score
+}
+
+export function ballsRemaining(doc: PinballDocument): number {
+  return doc.players.reduce((total, player) => total + player.ballsLeft, 0)
 }
 
 export function flashNote(doc: PinballDocument, text: string, ms = 1700): void {
